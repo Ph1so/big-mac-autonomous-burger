@@ -1,0 +1,24 @@
+[0.525s] Invoking command in '/home/t103/ros2_ws/src/tb3_yaw_fusion': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/t103/ros2_ws/build/tb3_yaw_fusion/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/t103/ros2_ws/install/tb3_yaw_fusion/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/tb3_yaw_fusion build --build-base /home/t103/ros2_ws/build/tb3_yaw_fusion/build install --record /home/t103/ros2_ws/build/tb3_yaw_fusion/install.log --install-scripts $base/lib/tb3_yaw_fusion --single-version-externally-managed install_data
+[0.699s] running egg_info
+[0.711s] writing ../../build/tb3_yaw_fusion/tb3_yaw_fusion.egg-info/PKG-INFO
+[0.711s] writing dependency_links to ../../build/tb3_yaw_fusion/tb3_yaw_fusion.egg-info/dependency_links.txt
+[0.711s] writing entry points to ../../build/tb3_yaw_fusion/tb3_yaw_fusion.egg-info/entry_points.txt
+[0.711s] writing requirements to ../../build/tb3_yaw_fusion/tb3_yaw_fusion.egg-info/requires.txt
+[0.711s] writing top-level names to ../../build/tb3_yaw_fusion/tb3_yaw_fusion.egg-info/top_level.txt
+[0.735s] reading manifest file '../../build/tb3_yaw_fusion/tb3_yaw_fusion.egg-info/SOURCES.txt'
+[0.735s] writing manifest file '../../build/tb3_yaw_fusion/tb3_yaw_fusion.egg-info/SOURCES.txt'
+[0.735s] running build
+[0.735s] running build_py
+[0.736s] copying tb3_yaw_fusion/imu_yaw_integrator.py -> /home/t103/ros2_ws/build/tb3_yaw_fusion/build/lib/tb3_yaw_fusion
+[0.736s] running install
+[0.740s] running install_lib
+[0.752s] copying /home/t103/ros2_ws/build/tb3_yaw_fusion/build/lib/tb3_yaw_fusion/imu_yaw_integrator.py -> /home/t103/ros2_ws/install/tb3_yaw_fusion/lib/python3.12/site-packages/tb3_yaw_fusion
+[0.752s] byte-compiling /home/t103/ros2_ws/install/tb3_yaw_fusion/lib/python3.12/site-packages/tb3_yaw_fusion/imu_yaw_integrator.py to imu_yaw_integrator.cpython-312.pyc
+[0.752s] running install_data
+[0.752s] running install_egg_info
+[0.765s] removing '/home/t103/ros2_ws/install/tb3_yaw_fusion/lib/python3.12/site-packages/tb3_yaw_fusion-0.0.0-py3.12.egg-info' (and everything under it)
+[0.765s] Copying ../../build/tb3_yaw_fusion/tb3_yaw_fusion.egg-info to /home/t103/ros2_ws/install/tb3_yaw_fusion/lib/python3.12/site-packages/tb3_yaw_fusion-0.0.0-py3.12.egg-info
+[0.765s] running install_scripts
+[0.846s] Installing listener script to /home/t103/ros2_ws/install/tb3_yaw_fusion/lib/tb3_yaw_fusion
+[0.846s] writing list of installed files to '/home/t103/ros2_ws/build/tb3_yaw_fusion/install.log'
+[0.865s] Invoked command in '/home/t103/ros2_ws/src/tb3_yaw_fusion' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/t103/ros2_ws/build/tb3_yaw_fusion/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/t103/ros2_ws/install/tb3_yaw_fusion/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/tb3_yaw_fusion build --build-base /home/t103/ros2_ws/build/tb3_yaw_fusion/build install --record /home/t103/ros2_ws/build/tb3_yaw_fusion/install.log --install-scripts $base/lib/tb3_yaw_fusion --single-version-externally-managed install_data
