@@ -26,6 +26,7 @@ setup(
             'console_scripts': [
                     'imu_listener = tb3_yaw_fusion.imu_yaw_integrator:main',
                     'odom_listener = tb3_yaw_fusion.odom_yaw_extractor:main',
+                    'complementary_yaw_fusion = tb3_yaw_fusion.complementary_yaw_fusion:main',
             ],
     },
 )

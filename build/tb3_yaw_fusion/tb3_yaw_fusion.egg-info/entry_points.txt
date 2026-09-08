@@ -1,3 +1,4 @@
 [console_scripts]
+complementary_yaw_fusion = tb3_yaw_fusion.complementary_yaw_fusion:main
 imu_listener = tb3_yaw_fusion.imu_yaw_integrator:main
 odom_listener = tb3_yaw_fusion.odom_yaw_extractor:main
