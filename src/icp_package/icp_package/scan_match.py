@@ -236,8 +236,10 @@ class PauseAndCapture(Node):
                 closest_list.append(tgt_closest_point)
             u_mat, _, vh_mat = self.svd_estimation(src, closest_list)
             rot = np.transpose(vh_mat) @ np.transpose(u_mat)
-            p, q = self.calculate_centroids(src, closest_list)
-            t = q - (rot @ p)
+            p_cent = self.calculate_centroids(src)
+            q_cent = self.calculate_centroids(closest_list)
+
+            t = q_cent - (rot @ p_cent)
 
             src @= rot
             src @= t
@@ -252,17 +254,9 @@ class PauseAndCapture(Node):
         return src.tolist()
 
     @staticmethod
-    def calculate_centroids(prev_pts, curr_pts):
-        """Calculates the centroids of the previous and current points"""
-        p_cent = [0, 0, 0]
-        for n in prev_pts:
-            p_cent += n
-        p_cent = p_cent / len(prev_pts)
-        c_cent = [0, 0, 0]
-        for n in curr_pts:
-            c_cent += n
-        c_cent = c_cent / len(curr_pts)
-        return (p_cent, c_cent)
+    def calculate_centroids(points):
+        """Calculates the centroid of a set of 3D points"""
+        return np.mean(np.asarray(points), axis=0)
 
     # Curr = Source, Prev = Target
     def svd_estimation(self, previous_points, current_points):
