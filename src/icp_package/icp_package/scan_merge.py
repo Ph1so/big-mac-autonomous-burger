@@ -63,7 +63,7 @@ class PauseAndCapture(Node):
             self.capture_enabled = True
 
     def scan_callback(self, scan_msg):
-        """Callback function from scan message"""
+        """Callback function from scan message."""
         if not self.capture_enabled:
             return
 
@@ -84,7 +84,6 @@ class PauseAndCapture(Node):
         try:
             cloud_in_laser = self.laser_projector.projectLaser(scan_msg)
 
-            # TODO:
             # Perform a lookup to transform the point cloud from its original
             # frame to the 'odom' frame
             transform = self.tf_buffer.lookup_transform(
@@ -107,7 +106,6 @@ class PauseAndCapture(Node):
         except TransformException as ex:
             self.get_logger().warn(f"Transform failed after delay: {str(ex)}")
 
-    # -------------------- TODO -------------------- #
     def transform_pointcloud2(self, cloud_msg, transform):
         """Transform a point cloud using Euler angles from a given quaternion."""
 
@@ -124,7 +122,6 @@ class PauseAndCapture(Node):
         # of rotation matrices and apply them to the point
         # HINT: Yaw @ Pitch @ Roll
 
-        # pylint: disable=too-many-positional-arguments
         # pylint: disable=too-many-arguments
         def rotate_point_euler(x, y, z, roll, pitch, yaw) -> tuple[int, int, int]:
             R_yaw = np.array(

@@ -4,12 +4,17 @@ it into a 2D point cloud, then calculates the transform via
 matched points, and then merges the new points with the existing cloud
 """
 
+# pylint: disable=fixme, no-name-in-module, unused-variable, no-member
+# pylint: disable=no-value-for-parameter, too-many-locals, invalid-name
+# pylint: disable=too-many-function-args, consider-using-enumerate
+# pylint: disable=missing-function-docstring, no-self-argument, not-an-iterable
+
 import math
 import threading
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
-
+from rclpy.time import Time
 import numpy as np
 from sensor_msgs.msg import LaserScan, PointCloud2, PointField
 from std_msgs.msg import Header
@@ -20,6 +25,9 @@ import sensor_msgs_py.point_cloud2 as pc2
 from scipy.spatial import cKDTree
 from geometry_msgs.msg import Quaternion
 from tf_transformations import euler_from_quaternion
+
+# from openai import chatgprt
+# machine.learn()
 
 
 # pylint: disable=too-many-instance-attributes
@@ -96,14 +104,18 @@ class PauseAndCapture(Node):
             # Perform a lookup to transform the point cloud from its original
             # frame to the 'odom' frame
             transform = self.tf_buffer.lookup_transform(
-                ...,  # Target frame (where do you want to transform to?)
-                ...,  # Source frame (the point cloud's original frame)
-                ...,  # Timestamp of the scan message to ensure proper time synchronization
-                ...,  # Timeout of 0.5 seconds to wait for the transform
+                "odom",  # Target frame (where do you want to transform to?)
+                scan_msg.header.frame_id,  # Source frame (the point cloud's original frame)
+                Time.from_msg(
+                    scan_msg.header.stamp
+                ),  # Timestamp of the scan message to ensure proper time synchronization
+                timeout=rclpy.duration.Duration(
+                    seconds=0.5
+                ),  # Timeout of 0.5 seconds to wait for the transform
             )
 
             # Transform the point cloud with the transform_pointcloud2 function
-            transformed_points = ...
+            transformed_points = self.transform_pointcloud2()
 
             if self.icp_accumulated_points:
                 icp_aligned = self.perform_icp(
@@ -139,27 +151,64 @@ class PauseAndCapture(Node):
     ) -> list[tuple[int, int, int]]:
         """Transform a point cloud using Euler angles from a given quaternion."""
 
-        # pylint: disable=too-many-positional-arguments
         # pylint: disable=too-many-arguments
         def rotate_point_euler(x, y, z, roll, pitch, yaw) -> tuple[int, int, int]:
             """Rotate a point (x, y, z) using Euler angles (roll, pitch, yaw)."""
             # TODO:
             # using the roll,pitch and yaw construct the Rx , Ry, Rz matrix
 
+            R_yaw = np.array(
+                [
+                    [math.cos(yaw), -math.sin(yaw), 0],
+                    [math.sin(yaw), math.cos(yaw), 0],
+                    [0, 0, 1],
+                ]
+            )
+            R_pitch = np.array(
+                [
+                    [math.cos(pitch), 0, math.sin(pitch)],
+                    [0, 1, 0],
+                    [-math.sin(pitch), 0, math.cos(pitch)],
+                ]
+            )
+            R__roll = np.array(
+                [
+                    [1, 0, 0],
+                    [0, math.cos(roll), -math.sin(roll)],
+                    [0, math.sin(roll), math.cos(roll)],
+                ]
+            )
+
             # TODO:
             # Combined rotation matrix
+            R = R_yaw @ R_pitch @ R__roll
 
             # TODO:
             # Apply the rotation to the point
 
-            return ...
+            res = R @ np.array([x, y, z])
+
+            return tuple(res)
 
         # Extract translation and rotation (quaternion) from the transform method
-        ...
+        tx = transform.transform.translation.x
+        ty = transform.transform.translation.y
+        tz = transform.transform.translation.z
+
+        qx = transform.transform.rotation.x
+        qy = transform.transform.rotation.y
+        qz = transform.transform.rotation.z
+        qw = transform.transform.rotation.w
 
         # Convert quaternion to Euler angles (roll, pitch, yaw)
         # Hint: Use the euler_from_quaternion
-        ...
+        q = Quaternion(
+            x=qx,
+            y=qy,
+            z=qz,
+            w=qw,
+        )
+        Q = euler_from_quaternion(q)
 
         # Transform the point cloud using Euler rotation
         transformed_points = []
@@ -167,13 +216,15 @@ class PauseAndCapture(Node):
             cloud_msg, field_names=("x", "y", "z"), skip_nans=True
         ):
             # Get values of pt
-            ...
+            x = pt.x
+            y = pt.y
+            z = pt.z
 
             # TODO:
             # Apply rotation to the point using Euler angles use the rotate point euler function
-
+            new_pt = rotate_point_euler(x, y, z, Q[0], Q[1], Q[2])
             # Append transformed point
-            transformed_points.append((...))
+            transformed_points.append(new_pt)
 
         return transformed_points
 
@@ -205,21 +256,44 @@ class PauseAndCapture(Node):
         # 11. Compute mean error and check for convergence
         # 12. If converged, break the loop
 
-        ...
+        for _ in range(max_iterations):
+            tree = cKDTree(tgt, leafsize=16)
+            closest_list = []
+            for i in range(len(src)):
+                tgt_closest_point = tree.query(src[i], k=1)
+                closest_list.append(tgt_closest_point)
+            U, _, Vh = self.svd_estimation(src, closest_list)
+            R = np.transpose(Vh) @ np.transpose(U)
+            p, q = self.calculate_centroids(src, closest_list)
+            t = q - (R @ p)
+
+            src @= R
+            src @= t
+
+            E = 0
+            for i in range(len(src)):
+                E += math.pow((closest_list[i] - (R @ src[i]) + t), 2)
+
+            if E < tolerance:
+                break
 
         return src.tolist()
+
+    def calculate_centroids(prev_pts, curr_pts):
+        p_cent = [0, 0, 0]
+        for n in prev_pts:
+            p_cent += n
+        p_cent = p_cent / len(prev_pts)
+        c_cent = [0, 0, 0]
+        for n in curr_pts:
+            c_cent += n
+        c_cent = c_cent / len(curr_pts)
+        return (p_cent, c_cent)
 
     # Curr = Source, Prev = Target
     def svd_estimation(self, previous_points, current_points):
         """Cacluates matrices for U, V_T, and Sigma"""
-        p_cent = [0, 0, 0]
-        for n in previous_points:
-            p_cent += n
-        p_cent = p_cent / len(previous_points)
-        c_cent = [0, 0, 0]
-        for n in current_points:
-            c_cent += n
-        c_cent = c_cent / len(current_points)
+        p_cent, c_cent = self.calculate_centroids(previous_points, current_points)
 
         H = np.array([[]])
         for i in range(len(previous_points)):
