@@ -1,0 +1,16 @@
+[MAIN]
+# tf2_ros re-exports TransformException from a compiled C extension that
+# pylint cannot inspect without loading it.
+extension-pkg-allow-list=tf2_py,tf2
+
+[DESIGN]
+# ROS nodes hold many handles (tf buffer/listener, pubs, subs, timers) and the
+# transform/ICP routines work with many intermediate values.
+max-attributes=12
+max-args=6
+max-locals=20
+
+[MESSAGES CONTROL]
+# scan_merge and scan_match are separate assignment nodes that intentionally
+# share boilerplate (node setup, rotation, cloud publishing).
+disable=duplicate-code

@@ -21,6 +21,8 @@ from scipy.spatial import cKDTree
 from geometry_msgs.msg import Quaternion
 from tf_transformations import euler_from_quaternion
 
+from icp_package.utils import euler_rotation_matrix
+
 # from openai import chatgprt
 # machine.learn()
 
@@ -41,15 +43,24 @@ class PauseAndCapture(Node):
 
         # Set up the subscription for LaserScan message
         # HINT: Subscribe on the '/scan' topic
-        self.subscription = ...
+        self.subscription = self.create_subscription(
+            LaserScan,
+            '/scan',
+            self.scan_callback,
+            qos_profile)
 
         # Create a publisher for PointCloud2 messages
         # HINT: Publish on the '/accumulated_cloud' topic
-        self.pc_pub = ...
-
+        self.pc_pub = self.create_publisher(
+            PointCloud2,
+            '/accumulated_cloud',
+            qos_profile)
         # Create a publisher for ICP merged cloud
         # HINT: Publish on the '/icp_merged_cloud' topic
-        self.icp_pub = ...
+        self.icp_pub = self.create_publisher(
+            PointCloud2,
+            '/icp_merged_cloud',
+            qos_profile)
 
         self.accumulated_points = []
         self.icp_accumulated_points = []
@@ -93,8 +104,6 @@ class PauseAndCapture(Node):
 
         try:
             cloud_in_laser = self.laser_projector.projectLaser(scan_msg)
-
-            # TODO:
             # Perform a lookup to transform the point cloud from its original
             # frame to the 'odom' frame
             transform = self.tf_buffer.lookup_transform(
@@ -109,7 +118,7 @@ class PauseAndCapture(Node):
             )
 
             # Transform the point cloud with the transform_pointcloud2 function
-            transformed_points = self.transform_pointcloud2()
+            transformed_points = self.transform_pointcloud2(cloud_in_laser, transform)
 
             if self.icp_accumulated_points:
                 icp_aligned = self.perform_icp(
@@ -136,7 +145,6 @@ class PauseAndCapture(Node):
         except TransformException as ex:
             self.get_logger().warn(f"Transform failed after delay: {str(ex)}")
 
-    # TODO: Complete the rotate_point_euler in transform_pointcloud2 functions
     # Note that ros inherently processes point clouds in 3d
     # even though the robot's point cloud is in 2d.
 
@@ -147,39 +155,12 @@ class PauseAndCapture(Node):
 
         def rotate_point_euler(x, y, z, roll, pitch, yaw) -> tuple[int, int, int]:
             """Rotate a point (x, y, z) using Euler angles (roll, pitch, yaw)."""
-            # TODO:
             # using the roll,pitch and yaw construct the Rx , Ry, Rz matrix
-
-            R_yaw = np.array(
-                [
-                    [math.cos(yaw), -math.sin(yaw), 0],
-                    [math.sin(yaw), math.cos(yaw), 0],
-                    [0, 0, 1],
-                ]
-            )
-            R_pitch = np.array(
-                [
-                    [math.cos(pitch), 0, math.sin(pitch)],
-                    [0, 1, 0],
-                    [-math.sin(pitch), 0, math.cos(pitch)],
-                ]
-            )
-            R__roll = np.array(
-                [
-                    [1, 0, 0],
-                    [0, math.cos(roll), -math.sin(roll)],
-                    [0, math.sin(roll), math.cos(roll)],
-                ]
-            )
-
-            # TODO:
             # Combined rotation matrix
-            R = R_yaw @ R_pitch @ R__roll
-
-            # TODO:
+            rot = euler_rotation_matrix(roll, pitch, yaw)
             # Apply the rotation to the point
 
-            res = R @ np.array([x, y, z])
+            res = rot @ np.array([x, y, z])
 
             return tuple(res)
 
@@ -201,7 +182,7 @@ class PauseAndCapture(Node):
             z=qz,
             w=qw,
         )
-        Q = euler_from_quaternion(q)
+        euler = euler_from_quaternion(q)
 
         # Transform the point cloud using Euler rotation
         transformed_points = []
@@ -212,11 +193,13 @@ class PauseAndCapture(Node):
             x = pt.x
             y = pt.y
             z = pt.z
-
-            # TODO:
             # Apply rotation to the point using Euler angles use the rotate point euler function
-            new_pt = rotate_point_euler(x, y, z, Q[0], Q[1], Q[2])
+            x, y, z = rotate_point_euler(x, y, z, euler[0], euler[1], euler[2])
             # Append transformed point
+            x += tx
+            y += ty
+            z += tz
+            new_pt = (x, y, z)
             transformed_points.append(new_pt)
 
         return transformed_points
@@ -227,11 +210,6 @@ class PauseAndCapture(Node):
         """Main ICP loop to transform new points"""
         src = np.array(current_points)
         tgt = np.array(previous_points)
-
-        ERROR = []
-        prev_error = float("inf")
-        prev_error = float(10000.0)
-        counter_ = 0
 
         # Write the ICP loop here
 
@@ -252,27 +230,30 @@ class PauseAndCapture(Node):
         for _ in range(max_iterations):
             tree = cKDTree(tgt, leafsize=16)
             closest_list = []
-            for i in range(len(src)):
-                tgt_closest_point = tree.query(src[i], k=1)
+            for point in src:
+                _, index = tree.query(point, k=1)
+                tgt_closest_point = tgt[index]
                 closest_list.append(tgt_closest_point)
-            U, _, Vh = self.svd_estimation(src, closest_list)
-            R = np.transpose(Vh) @ np.transpose(U)
+            u_mat, _, vh_mat = self.svd_estimation(src, closest_list)
+            rot = np.transpose(vh_mat) @ np.transpose(u_mat)
             p, q = self.calculate_centroids(src, closest_list)
-            t = q - (R @ p)
+            t = q - (rot @ p)
 
-            src @= R
+            src @= rot
             src @= t
 
-            E = 0
-            for i in range(len(src)):
-                E += math.pow((closest_list[i] - (R @ src[i]) + t), 2)
+            err = 0
+            for i, point in enumerate(src):
+                err += math.pow((closest_list[i] - (rot @ point) + t), 2)
 
-            if E < tolerance:
+            if err < tolerance:
                 break
 
         return src.tolist()
 
+    @staticmethod
     def calculate_centroids(prev_pts, curr_pts):
+        """Calculates the centroids of the previous and current points"""
         p_cent = [0, 0, 0]
         for n in prev_pts:
             p_cent += n
@@ -288,14 +269,14 @@ class PauseAndCapture(Node):
         """Cacluates matrices for U, V_T, and Sigma"""
         p_cent, c_cent = self.calculate_centroids(previous_points, current_points)
 
-        H = np.array([[]])
-        for i in range(len(previous_points)):
-            p_var = previous_points[i] - p_cent
+        h_mat = np.array([[]])
+        for i, prev_pt in enumerate(previous_points):
+            p_var = prev_pt - p_cent
             c_var = current_points[i] - c_cent
             res = np.dot(p_var, np.transpose(c_var))
-            H += res
+            h_mat += res
 
-        return np.linalg.svd(H)
+        return np.linalg.svd(h_mat)
 
     def publish_accumulated_cloud(self, stamp):
         """Publishes the existing accumulated pointcloud"""

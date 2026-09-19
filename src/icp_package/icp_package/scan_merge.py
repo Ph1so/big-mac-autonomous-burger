@@ -19,6 +19,8 @@ import sensor_msgs_py.point_cloud2 as pc2
 import numpy as np
 from geometry_msgs.msg import Quaternion
 
+from icp_package.utils import euler_rotation_matrix
+
 
 class PauseAndCapture(Node):
     """Start of the pointcloud merging node"""
@@ -35,11 +37,18 @@ class PauseAndCapture(Node):
         )
         # Set up the subscription for LaserScan message
         # HINT: Publish on the '/scan' topic
-        self.subscription = ...
+        self.subscription =  self.create_subscription(
+            LaserScan,
+            '/scan',
+            self.scan_callback,
+            qos_profile)
 
         # Create a publisher for PointCloud2 messages
         # HINT: Publish on the '/accumulated_cloud' topic
-        self.pc_pub = ...
+        self.pc_pub = self.create_publisher(
+            PointCloud2,
+            '/accumulated_cloud',
+            qos_profile)
         self.accumulated_points = []
 
         self.capture_enabled = False
@@ -122,31 +131,9 @@ class PauseAndCapture(Node):
         # HINT: Yaw @ Pitch @ Roll
 
         def rotate_point_euler(x, y, z, roll, pitch, yaw) -> tuple[int, int, int]:
-            R_yaw = np.array(
-                [
-                    [math.cos(yaw), -math.sin(yaw), 0],
-                    [math.sin(yaw), math.cos(yaw), 0],
-                    [0, 0, 1],
-                ]
-            )
-            R_pitch = np.array(
-                [
-                    [math.cos(pitch), 0, math.sin(pitch)],
-                    [0, 1, 0],
-                    [-math.sin(pitch), 0, math.cos(pitch)],
-                ]
-            )
-            R__roll = np.array(
-                [
-                    [1, 0, 0],
-                    [0, math.cos(roll), -math.sin(roll)],
-                    [0, math.sin(roll), math.cos(roll)],
-                ]
-            )
+            rot = euler_rotation_matrix(roll, pitch, yaw) @ np.array([x, y, z])
 
-            R = (R_yaw @ R_pitch @ R__roll) @ np.array([x, y, z])
-
-            return tuple(R)
+            return tuple(rot)
 
         # Extract translation and rotation (quaternion) from the transform
         tx = transform.transform.translation.x
@@ -165,7 +152,7 @@ class PauseAndCapture(Node):
             z=qz,
             w=qw,
         )
-        Q = quaternion_to_euler(q)
+        euler = quaternion_to_euler(q)
 
         # Transform the point cloud using Euler rotation
         transformed_points = []
@@ -173,12 +160,8 @@ class PauseAndCapture(Node):
             cloud_msg, field_names=("x", "y", "z"), skip_nans=True
         ):
             x, y, z = pt
-
-            # TODO:
             # Apply rotation to the point using Euler angles use the rotate point euler function
-            p = rotate_point_euler(x, y, z, Q[0], Q[1], Q[2])
-
-            # TODO:
+            p = rotate_point_euler(x, y, z, euler[0], euler[1], euler[2])
             # Apply translation to the rotated point using the variable t
             x, y, z = p
             x -= tx
