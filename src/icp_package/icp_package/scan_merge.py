@@ -20,7 +20,6 @@ import numpy as np
 from geometry_msgs.msg import Quaternion
 
 
-# pylint: disable=too-many-instance-attributes
 class PauseAndCapture(Node):
     """Start of the pointcloud merging node"""
 
@@ -122,7 +121,6 @@ class PauseAndCapture(Node):
         # of rotation matrices and apply them to the point
         # HINT: Yaw @ Pitch @ Roll
 
-        # pylint: disable=too-many-arguments
         def rotate_point_euler(x, y, z, roll, pitch, yaw) -> tuple[int, int, int]:
             R_yaw = np.array(
                 [

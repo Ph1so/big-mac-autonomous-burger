@@ -4,11 +4,6 @@ it into a 2D point cloud, then calculates the transform via
 matched points, and then merges the new points with the existing cloud
 """
 
-# pylint: disable=fixme, no-name-in-module, unused-variable, no-member
-# pylint: disable=no-value-for-parameter, too-many-locals, invalid-name
-# pylint: disable=too-many-function-args, consider-using-enumerate
-# pylint: disable=missing-function-docstring, no-self-argument, not-an-iterable
-
 import math
 import threading
 import rclpy
@@ -30,7 +25,6 @@ from tf_transformations import euler_from_quaternion
 # machine.learn()
 
 
-# pylint: disable=too-many-instance-attributes
 class PauseAndCapture(Node):
     """This defines the scan_match node to take in Lidar points"""
 
@@ -151,7 +145,6 @@ class PauseAndCapture(Node):
     ) -> list[tuple[int, int, int]]:
         """Transform a point cloud using Euler angles from a given quaternion."""
 
-        # pylint: disable=too-many-arguments
         def rotate_point_euler(x, y, z, roll, pitch, yaw) -> tuple[int, int, int]:
             """Rotate a point (x, y, z) using Euler angles (roll, pitch, yaw)."""
             # TODO:
