@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'scan_match = icp_package.scan_match:main',
+            'scan_merge = icp_package.scan_merge:main',
         ],
     },
 )

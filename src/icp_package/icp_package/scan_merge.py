@@ -6,6 +6,7 @@ import threading
 
 import rclpy
 from rclpy.node import Node
+from rclpy.time import Time
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
 from sensor_msgs.msg import LaserScan, PointCloud2, PointField
@@ -83,7 +84,7 @@ class PauseAndCapture(Node):
                 # Source frame (the point cloud's original frame)
                 scan_msg.header.frame_id,
                 # Timestamp of the scan message to ensure proper time synchronization
-                rclpy.time.Time(),
+                Time.from_msg(scan_msg.header.stamp),
                 # Timeout of 0.5 seconds to wait for the transform
                 timeout=rclpy.duration.Duration(seconds=0.5)
             )
