@@ -261,7 +261,8 @@ class PauseAndCapture(Node):
     # Curr = Source, Prev = Target
     def svd_estimation(self, previous_points, current_points):
         """Cacluates matrices for U, V_T, and Sigma"""
-        p_cent, c_cent = self.calculate_centroids(previous_points, current_points)
+        p_cent = self.calculate_centroids(previous_points)
+        c_cent = self.calculate_centroids(current_points)
 
         h_mat = np.array([[]])
         for i, prev_pt in enumerate(previous_points):
