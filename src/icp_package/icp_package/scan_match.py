@@ -225,6 +225,7 @@ class PauseAndCapture(Node):
             closest_list = []
             for point in src:
                 _, index = tree.query(point, k=1)
+                print(f"index: {index} , tgt size: {len(tgt)}, tgt[index]: {tgt[index]}")
                 tgt_closest_point = tgt[index]
                 closest_list.append(tgt_closest_point)
             print(f"src dim: {src.shape}, closest_list dim: {np.array(closest_list).shape}")
@@ -236,8 +237,8 @@ class PauseAndCapture(Node):
 
             t = q_cent - (rot @ np.transpose(p_cent))
 
-            src @= rot
-            src @= t
+            src @= rot.T
+            src += t
 
             err = 0
             for i, point in enumerate(src):
@@ -251,13 +252,13 @@ class PauseAndCapture(Node):
     @staticmethod
     def calculate_centroids(points):
         """Calculates the centroid of a set of 3D points"""
-        return np.asarray([np.mean(np.asarray(points), axis=0)])
+        return np.mean(np.asarray(points), axis=0)
 
     # Curr = Source, Prev = Target
     def svd_estimation(self, previous_points, current_points):
         """Cacluates matrices for U, V_T, and Sigma"""
-        p_cent = self.calculate_centroids(previous_points)
-        c_cent = self.calculate_centroids(current_points)
+        p_cent = np.asarray([self.calculate_centroids(previous_points)])
+        c_cent = np.asarray([self.calculate_centroids(current_points)])
         print(f"p_cent: {p_cent.shape}, c_cent: {c_cent.shape}")
         h_mat = np.zeros((3, 3))
         for i, prev_pt in enumerate(previous_points):
