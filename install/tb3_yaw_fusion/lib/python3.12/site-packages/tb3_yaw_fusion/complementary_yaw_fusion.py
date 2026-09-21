@@ -12,7 +12,7 @@ class FusedNode(Node):
 
     def __init__(self):
         super().__init__("fused_node")
-        self.declare_parameter("alpha", 9.8)
+        self.declare_parameter("alpha", .98)
         self.yaw_imu_subscription = self.create_subscription(
             Float64, "yaw/imu", self.imu_listener_callback, 10
         )

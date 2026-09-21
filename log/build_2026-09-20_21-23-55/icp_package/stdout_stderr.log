@@ -1,0 +1,42 @@
+running egg_info
+creating ../../build/icp_package/icp_package.egg-info
+writing ../../build/icp_package/icp_package.egg-info/PKG-INFO
+writing dependency_links to ../../build/icp_package/icp_package.egg-info/dependency_links.txt
+writing entry points to ../../build/icp_package/icp_package.egg-info/entry_points.txt
+writing requirements to ../../build/icp_package/icp_package.egg-info/requires.txt
+writing top-level names to ../../build/icp_package/icp_package.egg-info/top_level.txt
+writing manifest file '../../build/icp_package/icp_package.egg-info/SOURCES.txt'
+reading manifest file '../../build/icp_package/icp_package.egg-info/SOURCES.txt'
+writing manifest file '../../build/icp_package/icp_package.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/t103/ros2_ws/build/icp_package/build
+creating /home/t103/ros2_ws/build/icp_package/build/lib
+creating /home/t103/ros2_ws/build/icp_package/build/lib/icp_package
+copying icp_package/scan_match.py -> /home/t103/ros2_ws/build/icp_package/build/lib/icp_package
+copying icp_package/utils.py -> /home/t103/ros2_ws/build/icp_package/build/lib/icp_package
+copying icp_package/__init__.py -> /home/t103/ros2_ws/build/icp_package/build/lib/icp_package
+copying icp_package/scan_merge.py -> /home/t103/ros2_ws/build/icp_package/build/lib/icp_package
+running install
+running install_lib
+creating /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package
+copying /home/t103/ros2_ws/build/icp_package/build/lib/icp_package/scan_match.py -> /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package
+copying /home/t103/ros2_ws/build/icp_package/build/lib/icp_package/utils.py -> /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package
+copying /home/t103/ros2_ws/build/icp_package/build/lib/icp_package/__init__.py -> /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package
+copying /home/t103/ros2_ws/build/icp_package/build/lib/icp_package/scan_merge.py -> /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package
+byte-compiling /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package/scan_match.py to scan_match.cpython-312.pyc
+byte-compiling /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package/utils.py to utils.cpython-312.pyc
+byte-compiling /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package/__init__.py to __init__.cpython-312.pyc
+byte-compiling /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package/scan_merge.py to scan_merge.cpython-312.pyc
+running install_data
+creating /home/t103/ros2_ws/install/icp_package/share/ament_index
+creating /home/t103/ros2_ws/install/icp_package/share/ament_index/resource_index
+creating /home/t103/ros2_ws/install/icp_package/share/ament_index/resource_index/packages
+copying resource/icp_package -> /home/t103/ros2_ws/install/icp_package/share/ament_index/resource_index/packages
+copying package.xml -> /home/t103/ros2_ws/install/icp_package/share/icp_package
+running install_egg_info
+Copying ../../build/icp_package/icp_package.egg-info to /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package-0.0.0-py3.12.egg-info
+running install_scripts
+Installing scan_match script to /home/t103/ros2_ws/install/icp_package/lib/icp_package
+Installing scan_merge script to /home/t103/ros2_ws/install/icp_package/lib/icp_package
+writing list of installed files to '/home/t103/ros2_ws/build/icp_package/install.log'

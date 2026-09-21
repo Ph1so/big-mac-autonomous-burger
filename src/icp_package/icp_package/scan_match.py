@@ -120,6 +120,7 @@ class PauseAndCapture(Node):
             # Transform the point cloud with the transform_pointcloud2 function
             transformed_points = self.transform_pointcloud2(cloud_in_laser, transform)
 
+
             if self.icp_accumulated_points:
                 icp_aligned = self.perform_icp(
                     self.icp_accumulated_points, transformed_points
@@ -176,13 +177,7 @@ class PauseAndCapture(Node):
 
         # Convert quaternion to Euler angles (roll, pitch, yaw)
         # Hint: Use the euler_from_quaternion
-        q = Quaternion(
-            x=qx,
-            y=qy,
-            z=qz,
-            w=qw,
-        )
-        euler = euler_from_quaternion(q)
+        euler = euler_from_quaternion([qx, qy, qz, qw])
 
         # Transform the point cloud using Euler rotation
         transformed_points = []
@@ -190,9 +185,7 @@ class PauseAndCapture(Node):
             cloud_msg, field_names=("x", "y", "z"), skip_nans=True
         ):
             # Get values of pt
-            x = pt.x
-            y = pt.y
-            z = pt.z
+            x, y, z = pt
             # Apply rotation to the point using Euler angles use the rotate point euler function
             x, y, z = rotate_point_euler(x, y, z, euler[0], euler[1], euler[2])
             # Append transformed point
@@ -234,19 +227,21 @@ class PauseAndCapture(Node):
                 _, index = tree.query(point, k=1)
                 tgt_closest_point = tgt[index]
                 closest_list.append(tgt_closest_point)
+            print(f"src dim: {src.shape}, closest_list dim: {np.array(closest_list).shape}")
             u_mat, _, vh_mat = self.svd_estimation(src, closest_list)
+            print(f"u dim: {u_mat.shape}, vh dim: {vh_mat.shape}")
             rot = np.transpose(vh_mat) @ np.transpose(u_mat)
             p_cent = self.calculate_centroids(src)
             q_cent = self.calculate_centroids(closest_list)
 
-            t = q_cent - (rot @ p_cent)
+            t = q_cent - (rot @ np.transpose(p_cent))
 
             src @= rot
             src @= t
 
             err = 0
             for i, point in enumerate(src):
-                err += math.pow((closest_list[i] - (rot @ point) + t), 2)
+                err += math.pow(np.linalg.norm(closest_list[i] - (rot @ point) + t), 2)
 
             if err < tolerance:
                 break
@@ -256,21 +251,20 @@ class PauseAndCapture(Node):
     @staticmethod
     def calculate_centroids(points):
         """Calculates the centroid of a set of 3D points"""
-        return np.mean(np.asarray(points), axis=0)
+        return np.asarray([np.mean(np.asarray(points), axis=0)])
 
     # Curr = Source, Prev = Target
     def svd_estimation(self, previous_points, current_points):
         """Cacluates matrices for U, V_T, and Sigma"""
         p_cent = self.calculate_centroids(previous_points)
         c_cent = self.calculate_centroids(current_points)
-
-        h_mat = np.array([[]])
+        print(f"p_cent: {p_cent.shape}, c_cent: {c_cent.shape}")
+        h_mat = np.zeros((3, 3))
         for i, prev_pt in enumerate(previous_points):
-            p_var = prev_pt - p_cent
-            c_var = current_points[i] - c_cent
-            res = np.dot(p_var, np.transpose(c_var))
+            p_var = np.asarray([prev_pt]) - p_cent
+            c_var = np.asarray([current_points[i]]) - c_cent
+            res = np.transpose(p_var) @ (c_var)
             h_mat += res
-
         return np.linalg.svd(h_mat)
 
     def publish_accumulated_cloud(self, stamp):
@@ -286,6 +280,7 @@ class PauseAndCapture(Node):
         ]
 
         cloud_msg = pc2.create_cloud(header, fields, self.accumulated_points)
+        
         self.pc_pub.publish(cloud_msg)
         self.get_logger().info("Published accumulated cloud.")
 
