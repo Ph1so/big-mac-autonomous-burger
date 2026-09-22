@@ -18,7 +18,6 @@ import tf2_ros
 from tf2_ros import TransformException, TransformStamped
 import sensor_msgs_py.point_cloud2 as pc2
 from scipy.spatial import cKDTree
-from geometry_msgs.msg import Quaternion
 from tf_transformations import euler_from_quaternion
 
 from icp_package.utils import euler_rotation_matrix
@@ -44,23 +43,19 @@ class PauseAndCapture(Node):
         # Set up the subscription for LaserScan message
         # HINT: Subscribe on the '/scan' topic
         self.subscription = self.create_subscription(
-            LaserScan,
-            '/scan',
-            self.scan_callback,
-            qos_profile)
+            LaserScan, "/scan", self.scan_callback, qos_profile
+        )
 
         # Create a publisher for PointCloud2 messages
         # HINT: Publish on the '/accumulated_cloud' topic
         self.pc_pub = self.create_publisher(
-            PointCloud2,
-            '/accumulated_cloud',
-            qos_profile)
+            PointCloud2, "/accumulated_cloud", qos_profile
+        )
         # Create a publisher for ICP merged cloud
         # HINT: Publish on the '/icp_merged_cloud' topic
         self.icp_pub = self.create_publisher(
-            PointCloud2,
-            '/icp_merged_cloud',
-            qos_profile)
+            PointCloud2, "/icp_merged_cloud", qos_profile
+        )
 
         self.accumulated_points = []
         self.icp_accumulated_points = []
@@ -119,7 +114,6 @@ class PauseAndCapture(Node):
 
             # Transform the point cloud with the transform_pointcloud2 function
             transformed_points = self.transform_pointcloud2(cloud_in_laser, transform)
-
 
             if self.icp_accumulated_points:
                 icp_aligned = self.perform_icp(
@@ -225,10 +219,14 @@ class PauseAndCapture(Node):
             closest_list = []
             for point in src:
                 _, index = tree.query(point, k=1)
-                print(f"index: {index} , tgt size: {len(tgt)}, tgt[index]: {tgt[index]}")
+                print(
+                    f"index: {index} , tgt size: {len(tgt)}, tgt[index]: {tgt[index]}"
+                )
                 tgt_closest_point = tgt[index]
                 closest_list.append(tgt_closest_point)
-            print(f"src dim: {src.shape}, closest_list dim: {np.array(closest_list).shape}")
+            print(
+                f"src dim: {src.shape}, closest_list dim: {np.array(closest_list).shape}"
+            )
             u_mat, _, vh_mat = self.svd_estimation(src, closest_list)
             print(f"u dim: {u_mat.shape}, vh dim: {vh_mat.shape}")
             rot = np.transpose(vh_mat) @ np.transpose(u_mat)
@@ -281,7 +279,7 @@ class PauseAndCapture(Node):
         ]
 
         cloud_msg = pc2.create_cloud(header, fields, self.accumulated_points)
-        
+
         self.pc_pub.publish(cloud_msg)
         self.get_logger().info("Published accumulated cloud.")
 
