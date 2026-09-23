@@ -214,6 +214,8 @@ class PauseAndCapture(Node):
         # 11. Compute mean error and check for convergence
         # 12. If converged, break the loop
 
+        prev_err = float("inf")
+
         for _ in range(max_iterations):
             tree = cKDTree(tgt, leafsize=16)
             closest_list = []
@@ -238,12 +240,12 @@ class PauseAndCapture(Node):
             src @= rot.T
             src += t
 
-            err = 0
-            for i, point in enumerate(src):
-                err += math.pow(np.linalg.norm(closest_list[i] - (rot @ point) + t), 2)
-
-            if err < tolerance:
+            residuals = np.asarray(closest_list) - src
+            err = math.sqrt(np.mean(np.sum(residuals**2, axis=1)))
+            
+            if abs(prev_err - err) < tolerance:
                 break
+            prev_err = err
 
         return src.tolist()
 
