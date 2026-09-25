@@ -164,9 +164,9 @@ class PauseAndCapture(Node):
             p = rotate_point_euler(x, y, z, euler[0], euler[1], euler[2])
             # Apply translation to the rotated point using the variable t
             x, y, z = p
-            x -= tx
-            y -= ty
-            z -= tz
+            x += tx
+            y += ty
+            z += tz
 
             # Append transformed point
             transformed_points.append([x, y, z])

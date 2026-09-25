@@ -61,7 +61,7 @@ class PauseAndCapture(Node):
             PointCloud2,
             '/icp_merged_cloud',
             qos_profile)
-
+        
         self.accumulated_points = []
         self.icp_accumulated_points = []
 

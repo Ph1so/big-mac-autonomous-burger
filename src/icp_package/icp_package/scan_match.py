@@ -54,9 +54,10 @@ class PauseAndCapture(Node):
         # Create a publisher for ICP merged cloud
         # HINT: Publish on the '/icp_merged_cloud' topic
         self.icp_pub = self.create_publisher(
-            PointCloud2, "/icp_merged_cloud", qos_profile
-        )
-
+            PointCloud2,
+            '/icp_merged_cloud',
+            qos_profile)
+        
         self.accumulated_points = []
         self.icp_accumulated_points = []
 
