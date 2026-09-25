@@ -1,3 +1,6 @@
+from sqlite3 import Time
+
+from hw5_all.OGM_files.utils import euler_rotation_matrix
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan, PointCloud2, PointField
@@ -14,6 +17,8 @@ from scipy.spatial import cKDTree
 from nav_msgs.msg import OccupancyGrid, MapMetaData
 from geometry_msgs.msg import Pose
 import matplotlib.pyplot as plt
+from tf_transformations import euler_from_quaternion
+
 
 # ************************************************
 #           IMPORTANT DETAILS BELOW             #
@@ -42,15 +47,23 @@ class PauseAndCapture(Node):
         # refer to the lecture for more details
 
         map_qos = QoSProfile(
-            ...
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
         )
 
         # Create a publisher for /map topic (with Occupancy Grid)
-        self.map_pub = ...
+        self.map_pub = self.create_publisher(
+            OccupancyGrid, "/map", map_qos
+        )
 
-        qos_profile = ...
+        qos_profile = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            durability=QoSDurabilityPolicy.VOLATILE,
+        )
         # Subscribe to the /scan topic
-        self.subscription = ...
+        self.subscription = self.create_subscription(
+            OccupancyGrid, "/scan", self.scan_callback, qos_profile
+        )
 
         # ---------------- TBD-END -------------
 
@@ -70,11 +83,11 @@ class PauseAndCapture(Node):
         self.height = ...  # measure the arena length and convert the metric value to pixel resolution, refer to the use class
         self.origin_x = -...  # initialize to the half of the arena width/2 metric value. Should have negative sign
         self.origin_y = -...  # initialize to the half of the arena height/2 metric value. Should have negative sign
-        self.l0 = ...  # initial probability of all cells will be 0.5. convert this to lof odds value
-        self.lz_occ = ...  # use higher positive values [0, 1] for occupied cell
-        self.lz_free = -...  # use lower negative values [0, 1] for empty cells. Should have negative sign
-        self.log_odds_min = -...  # calculate log odds lower bounds for probability = 0.1. Should have negative sign
-        self.log_odds_max = ...  # calculate log odds upper bounds for probability = 0.9
+        self.l0 = math.log(.5/.5)  # initial probability of all cells will be 0.5. convert this to lof odds value
+        self.lz_occ = math.log(.6/.4)  # use higher positive values [0, 1] for occupied cell
+        self.lz_free = math.log(.3/.7)  # use lower negative values [0, 1] for empty cells. Should have negative sign
+        self.log_odds_min = math.log(.1/.9) # calculate log odds lower bounds for probability = 0.1. Should have negative sign
+        self.log_odds_max = math.log(.9/.1)  # alculate log odds upper bounds for probability = 0.9
         # ----------------------- TBD-END -------------------
 
         self.log_odds_map = np.zeros((self.height, self.width), dtype=np.float32)
@@ -110,20 +123,24 @@ class PauseAndCapture(Node):
 
         try:
             # -------------- TBD -----------------
-            cloud_in_laser = ... # laser projection of scan
+            cloud_in_laser = self.laser_projector.projectLaser(scan_msg) # laser projection of scan
 
             transform = self.tf_buffer.lookup_transform( # lookup transform between the accumulated map and the scan
-                ...
+                "icp_merged_cloud",  # Target frame
+                scan_msg.header.frame_id, # Source frame 
+                Time.from_msg(scan_msg.header.stamp),
+                # Timeout of 0.5 seconds to wait for the transform
+                timeout=rclpy.duration.Duration(seconds=0.5),
             )
 
-            sensor_origin = np.array([...]) # transform stamped translation planar components
+            sensor_origin = np.array([transform.transform.translation.x,transform.transform.translation.y, transform.transform.translation.z ]) # transform stamped translation planar components
             if self.use_icp:
-                transformed_points = ... # use transform_pointcloud2 to transform laser projection points
+                transformed_points = self.transform_pointcloud2(cloud_in_laser, transform) # use transform_pointcloud2 to transform laser projection points
 
                 if len(self.accumulated_points) > 10:
-                    transformed_points = self.icp_point_to_plane_(...) # pass point clouds and sensor origin
+                    transformed_points = self.icp_point_to_plane_(transformed_points, ) # pass point clouds and sensor origin
             else:
-                transformed_points = ... # laser projection transform
+                transformed_points = self.transform_pointcloud2(cloud_in_laser, transform) # laser projection transform
 
             self.accumulated_points.extend(transformed_points)
 
@@ -147,9 +164,19 @@ class PauseAndCapture(Node):
         computes normal using three point normal. You can use your HW4 solution for this
         """
         normals = []
-        for i in range(1, len(points) - 1):
-            ...
+        n = len(points)
+        for i in range(1, n - 1):
+            tan = points[i + 1] - points[i - 1]
+            normal = np.asarray([-tan[1], tan[0]])
+            normal = normal / np.linalg.norm(normal)
+            align = sensor_origin - points[i]
+            if np.dot(normal, align) < 0:
+                normal = -normal
+            normals.append(normal)
+        normals.insert(0, normals[0])
+        normals.append(normals[len(normals) - 1])
         return np.array(normals)
+
 
         # --------------- TBD END ---------------
 
@@ -184,21 +211,75 @@ class PauseAndCapture(Node):
         self.get_logger().warn("Using point2plane icp", )
 
         # --------------- TBD ---------------
-        src = ...
-        tgt = ...
+                src = np.copy(source_points)
 
-        tree = ...
+        tgt = np.copy(target_points)
+
+        tree = cKDTree(tgt)
+
+
+        # a mechanism to switch between your normals and the robust normals estimates
 
         if self.normal_simple:
-            normals = ...
+
+            normals = self.compute_normals(tgt, target_sensor_origin)
+
         else:
-            normals = ...
+
+            normals = self.compute_normals_pca(tgt, tree, target_sensor_origin, k=8)
+
 
         if self.visualize_normal:
+
             self.plot_normals(tgt, normals)
 
-        for _ in range(max_iterations):
-            ...
+
+        # ----------------------- TBD -------------------
+
+        # pylint: disable=unpacking-non-sequence
+
+        for i in range(max_iterations):
+            tree = cKDTree(tgt)
+            _, indices = tree.query(src)  # use kd tree for initial association.
+            matched_pts = tgt[
+                indices
+            ]  # get the matched points from target PCL using the kd tree index
+            normals = self.compute_normals(tgt, target_sensor_origin)
+            matched_normals = normals[
+                indices
+            ]  # get the matched normals using the kd tree index
+            # pylint: disable=invalid-name
+            A, b = [], []
+            for p, q, n in zip(src, matched_pts, matched_normals):
+                # using δ, n (normals) form the parts of the linear system
+                # i.e. A and b as the system is Ax=b
+                # refer to the lecture slides for more details on the equations
+                # A = [n Rp n] is the matrix form, use the linearized form for the Rp
+                #   i.e. A = [n · [-py, px], nx, ny]
+                # b = [-n δ] =>  b = -n · (p - q)
+                # when working with vectors, use dot product where applicable
+                # Append A and b to the list
+                delta = p - q
+                R = np.asarray([[0, -1], [1, 0]])
+                Rp = R @ p
+                A_i = np.asarray([np.dot(np.transpose(n), Rp), n[0], n[1]])
+                b_i = -np.dot(n, delta)
+                A.append(A_i)
+                b.append(b_i)
+            # pylint: disable=invalid-name
+            A = np.array(A)
+            b = np.array(b)
+            
+            lsq, _, _, _ = np.linalg.lstsq(A, b)
+            angle = lsq[0]
+            tx = lsq[1]
+            ty = lsq[2]
+            R_lsq = np.asarray(
+                [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+            )
+            src @= np.transpose(R_lsq)
+            src += np.asarray([tx, ty])
+
             # --------------- TBD END ---------------
         return [(p[0], p[1], 0.0) for p in src]
 
@@ -237,9 +318,46 @@ class PauseAndCapture(Node):
         """
         ...
 
+        def rotate_point_euler(x, y, z, roll, pitch, yaw) -> tuple[int, int, int]:
+            """Rotate a point (x, y, z) using Euler angles (roll, pitch, yaw)."""
+            # using the roll,pitch and yaw construct the Rx , Ry, Rz matrix
+            # Combined rotation matrix
+            rot = euler_rotation_matrix(roll, pitch, yaw)
+            # Apply the rotation to the point
+
+            res = rot @ np.array([x, y, z])
+
+            return tuple(res)
+        
+        # Extract translation and rotation (quaternion) from the transform method
+        tx = transform.transform.translation.x
+        ty = transform.transform.translation.y
+        tz = transform.transform.translation.z
+
+        qx = transform.transform.rotation.x
+        qy = transform.transform.rotation.y
+        qz = transform.transform.rotation.z
+        qw = transform.transform.rotation.w
+
+        # Convert quaternion to Euler angles (roll, pitch, yaw)
+        # Hint: Use the euler_from_quaternion
+        euler = euler_from_quaternion([qx, qy, qz, qw])
+
+        # Transform the point cloud using Euler rotation
         transformed_points = []
-        for pt in pc2.read_points(cloud_msg, field_names=("x", "y", "z"), skip_nans=True):
-            ...
+        for pt in pc2.read_points(
+            cloud_msg, field_names=("x", "y", "z"), skip_nans=True
+        ):
+            # Get values of pt
+            x, y, z = pt
+            # Apply rotation to the point using Euler angles use the rotate point euler function
+            x, y, z = rotate_point_euler(x, y, z, euler[0], euler[1], euler[2])
+            # Append transformed point
+            x += tx
+            y += ty
+            z += tz
+            new_pt = (x, y, z)
+            transformed_points.append(new_pt)
 
         return transformed_points
     # -------------- TBD END -------------------
