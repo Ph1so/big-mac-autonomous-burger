@@ -1,0 +1,22 @@
+[0.579s] Invoking command in '/home/t103/ros2_ws/src/icp_package': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/t103/ros2_ws/build/icp_package/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/icp_package build --build-base /home/t103/ros2_ws/build/icp_package/build install --record /home/t103/ros2_ws/build/icp_package/install.log --install-scripts $base/lib/icp_package --single-version-externally-managed install_data
+[0.762s] running egg_info
+[0.774s] writing ../../build/icp_package/icp_package.egg-info/PKG-INFO
+[0.774s] writing dependency_links to ../../build/icp_package/icp_package.egg-info/dependency_links.txt
+[0.775s] writing entry points to ../../build/icp_package/icp_package.egg-info/entry_points.txt
+[0.775s] writing requirements to ../../build/icp_package/icp_package.egg-info/requires.txt
+[0.775s] writing top-level names to ../../build/icp_package/icp_package.egg-info/top_level.txt
+[0.799s] reading manifest file '../../build/icp_package/icp_package.egg-info/SOURCES.txt'
+[0.800s] writing manifest file '../../build/icp_package/icp_package.egg-info/SOURCES.txt'
+[0.800s] running build
+[0.800s] running build_py
+[0.800s] running install
+[0.805s] running install_lib
+[0.818s] running install_data
+[0.818s] running install_egg_info
+[0.831s] removing '/home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package-0.0.0-py3.12.egg-info' (and everything under it)
+[0.832s] Copying ../../build/icp_package/icp_package.egg-info to /home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages/icp_package-0.0.0-py3.12.egg-info
+[0.832s] running install_scripts
+[0.918s] Installing scan_match script to /home/t103/ros2_ws/install/icp_package/lib/icp_package
+[0.919s] Installing scan_merge script to /home/t103/ros2_ws/install/icp_package/lib/icp_package
+[0.919s] writing list of installed files to '/home/t103/ros2_ws/build/icp_package/install.log'
+[0.946s] Invoked command in '/home/t103/ros2_ws/src/icp_package' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/t103/ros2_ws/build/icp_package/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/t103/ros2_ws/install/icp_package/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/icp_package build --build-base /home/t103/ros2_ws/build/icp_package/build install --record /home/t103/ros2_ws/build/icp_package/install.log --install-scripts $base/lib/icp_package --single-version-externally-managed install_data
