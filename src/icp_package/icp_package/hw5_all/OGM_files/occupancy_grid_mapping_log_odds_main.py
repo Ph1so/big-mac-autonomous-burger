@@ -64,7 +64,7 @@ class PauseAndCapture(Node):
         )
         # Subscribe to the /scan topic
         self.subscription = self.create_subscription(
-            OccupancyGrid, "/scan", self.scan_callback, qos_profile
+            LaserScan, "/scan", self.scan_callback, qos_profile
         )
 
         # ---------------- TBD-END -------------
@@ -83,8 +83,8 @@ class PauseAndCapture(Node):
         self.resolution = 0.01
         self.width =  round(0.9 / self.resolution) # measure the arena width and convert the metric value to pixel resolution, refer to the use class
         self.height = round(1.8 / self.resolution)  # measure the arena length and convert the metric value to pixel resolution, refer to the use class
-        self.origin_x = -self.width/2  # initialize to the half of the arena width/2 metric value. Should have negative sign
-        self.origin_y = -self.height/2  # initialize to the half of the arena height/2 metric value. Should have negative sign
+        self.origin_x = -0.9 / 2  # initialize to the half of the arena width/2 metric value. Should have negative sign
+        self.origin_y = -1.8 / 2  # initialize to the half of the arena height/2 metric value. Should have negative sign
         self.l0 = math.log(.5/.5)  # initial probability of all cells will be 0.5. convert this to lof odds value
         self.lz_occ = math.log(.6/.4)  # use higher positive values [0, 1] for occupied cell
         self.lz_free = math.log(.3/.7)  # use lower negative values [0, 1] for empty cells. Should have negative sign
@@ -128,9 +128,9 @@ class PauseAndCapture(Node):
             cloud_in_laser = self.laser_projector.projectLaser(scan_msg) # laser projection of scan
 
             transform = self.tf_buffer.lookup_transform( # lookup transform between the accumulated map and the scan
-                "icp_merged_cloud",  # Target frame
+                "odom",  # Target frame
                 scan_msg.header.frame_id, # Source frame 
-                Time.from_msg(scan_msg.header.stamp),
+                Time(),  # latest available TF; robot is stationary when capturing, and scan stamps run ahead of odom TF
                 # Timeout of 0.5 seconds to wait for the transform
                 timeout=rclpy.duration.Duration(seconds=0.5),
             )
@@ -140,7 +140,11 @@ class PauseAndCapture(Node):
                 transformed_points = self.transform_pointcloud2(cloud_in_laser, transform) # use transform_pointcloud2 to transform laser projection points
 
                 if len(self.accumulated_points) > 10:
-                    transformed_points = self.icp_point_to_plane_(transformed_points, ) # pass point clouds and sensor origin
+                    transformed_points = self.icp_point_to_plane_(
+                        np.array(transformed_points)[:, :2],
+                        np.array(self.accumulated_points)[:, :2],
+                        sensor_origin[:2],
+                    ) # pass point clouds and sensor origin
             else:
                 transformed_points = self.transform_pointcloud2(cloud_in_laser, transform) # laser projection transform
 
@@ -359,7 +363,7 @@ class PauseAndCapture(Node):
         # create a point cloud using pc2.create_cloud
         header = Header()
         header.stamp = stamp
-        header.frame_id = "icp_merged_cloud"
+        header.frame_id = "odom"
 
         fields = [
             PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
@@ -367,7 +371,7 @@ class PauseAndCapture(Node):
             PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
         ]
 
-        cloud_msg = pc2.create_cloud(header, fields, self.icp_merged_cloud)
+        cloud_msg = pc2.create_cloud(header, fields, self.accumulated_points)
 
         self.pc_pub.publish(cloud_msg)
         self.get_logger().info("Published icp merged cloud.")
@@ -394,8 +398,8 @@ class PauseAndCapture(Node):
         # ---------------------- TBD ---------------------------------
         for x, y in points:
             # Convert robot and endpoint (scan hit) to map coordinates (cell indices)
-            mx0, my0 = robot_x, robot_y  # starting point for raycasting, use world_to_map()
-            mx1, my1 = x, y  # end point for raycasting, use world_to_map()
+            mx0, my0 = self.world_to_map(robot_x, robot_y)  # starting point for raycasting, use world_to_map()
+            mx1, my1 = self.world_to_map(x, y)  # end point for raycasting, use world_to_map()
 
             # Skips update if either point is outside the map bounds
             if mx0 is None or mx1 is None:
@@ -403,13 +407,13 @@ class PauseAndCapture(Node):
 
             # Free space update (cells along the ray from robot to hit point)
             for cx, cy in self.ray_casting(mx0, my0, mx1, my1)[:-1]:  # excludes last point (occupied)
-                lt_1 = self.log_odds_map[cx, cy] # previous log-odds value (lt−1)
+                lt_1 = self.log_odds_map[cy, cx] # previous log-odds value (lt−1)
                 lt = lt_1 + self.lz_free - self.l0   # log-odds update for free cell
                 self.log_odds_map[cy, cx] = np.clip(lt, self.log_odds_min, self.log_odds_max)
 
             # Occupied cell update (the cell where the scan hits an obstacle)
-            lt_1 = self.log_odds_map[cx, cy] # previous log-odds value (lt−1)
-            lt = lt_1 + self.lz_occ - self.l0   # log-odds update for free cell
+            lt_1 = self.log_odds_map[my1, mx1] # previous log-odds value (lt−1)
+            lt = lt_1 + self.lz_occ - self.l0   # log-odds update for occupied cell
             self.log_odds_map[my1, mx1] = np.clip(lt, self.log_odds_min, self.log_odds_max)
         # ---------------------- TBD-END ---------------------------------
 
@@ -457,8 +461,8 @@ class PauseAndCapture(Node):
 
         grid_msg.info = metadata
 
-        probs = 1 / (1 + math.exp(-1*self.log_odds_map))  # calculate probability from the logodds (remember log)
-        grid_data = (probs * 100).astype(np.uint8)  # ROS2 expects occupied grids to be = 100 * probability and int8
+        probs = 1 / (1 + np.exp(-1*self.log_odds_map))  # calculate probability from the logodds (remember log)
+        grid_data = (probs * 100).astype(np.int8)  # ROS2 expects occupied grids to be = 100 * probability and int8
         grid_data[self.log_odds_map == 0] = -1 # unexplored grids should have value of -1
 
         # ----------------- TBD END ---------------------
@@ -494,5 +498,6 @@ def main(args=None):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
