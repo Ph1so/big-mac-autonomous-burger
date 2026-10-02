@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'scan_match = icp_package.scan_match:main',
             'scan_merge = icp_package.scan_merge:main',
+            'ogm = icp_package.hw5_all.OGM_files.occupancy_grid_mapping_log_odds_main:main',
         ],
     },
 )

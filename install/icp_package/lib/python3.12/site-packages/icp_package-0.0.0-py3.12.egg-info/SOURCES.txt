@@ -12,6 +12,11 @@ icp_package/__init__.py
 icp_package/scan_match.py
 icp_package/scan_merge.py
 icp_package/utils.py
+icp_package/hw5_all/__init__.py
+icp_package/hw5_all/OGM_files/__init__.py
+icp_package/hw5_all/OGM_files/log_odds_sim.py
+icp_package/hw5_all/OGM_files/occupancy_grid_mapping_log_odds_main.py
+icp_package/hw5_all/OGM_files/utils.py
 resource/icp_package
 test/test_copyright.py
 test/test_flake8.py

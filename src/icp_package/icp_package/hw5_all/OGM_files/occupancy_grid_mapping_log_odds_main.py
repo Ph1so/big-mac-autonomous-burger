@@ -1,6 +1,6 @@
-from sqlite3 import Time
+from rclpy.time import Time
 
-from hw5_all.OGM_files.utils import euler_rotation_matrix
+from icp_package.hw5_all.OGM_files.utils import euler_rotation_matrix
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan, PointCloud2, PointField
@@ -48,6 +48,7 @@ class PauseAndCapture(Node):
 
         map_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
+            depth = 10,
             durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
         )
 
@@ -58,6 +59,7 @@ class PauseAndCapture(Node):
 
         qos_profile = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            depth = 10,
             durability=QoSDurabilityPolicy.VOLATILE,
         )
         # Subscribe to the /scan topic
@@ -79,10 +81,10 @@ class PauseAndCapture(Node):
         # ----------------------- TBD -----------------------
         # initialize the variables
         self.resolution = 0.01
-        self.width = ...  # measure the arena width and convert the metric value to pixel resolution, refer to the use class
-        self.height = ...  # measure the arena length and convert the metric value to pixel resolution, refer to the use class
-        self.origin_x = -...  # initialize to the half of the arena width/2 metric value. Should have negative sign
-        self.origin_y = -...  # initialize to the half of the arena height/2 metric value. Should have negative sign
+        self.width =  round(0.9 / self.resolution) # measure the arena width and convert the metric value to pixel resolution, refer to the use class
+        self.height = round(1.8 / self.resolution)  # measure the arena length and convert the metric value to pixel resolution, refer to the use class
+        self.origin_x = -self.width/2  # initialize to the half of the arena width/2 metric value. Should have negative sign
+        self.origin_y = -self.height/2  # initialize to the half of the arena height/2 metric value. Should have negative sign
         self.l0 = math.log(.5/.5)  # initial probability of all cells will be 0.5. convert this to lof odds value
         self.lz_occ = math.log(.6/.4)  # use higher positive values [0, 1] for occupied cell
         self.lz_free = math.log(.3/.7)  # use lower negative values [0, 1] for empty cells. Should have negative sign
@@ -211,29 +213,16 @@ class PauseAndCapture(Node):
         self.get_logger().warn("Using point2plane icp", )
 
         # --------------- TBD ---------------
-                src = np.copy(source_points)
-
+        src = np.copy(source_points)
         tgt = np.copy(target_points)
-
         tree = cKDTree(tgt)
-
-
         # a mechanism to switch between your normals and the robust normals estimates
-
         if self.normal_simple:
-
             normals = self.compute_normals(tgt, target_sensor_origin)
-
         else:
-
             normals = self.compute_normals_pca(tgt, tree, target_sensor_origin, k=8)
-
-
         if self.visualize_normal:
-
             self.plot_normals(tgt, normals)
-
-
         # ----------------------- TBD -------------------
 
         # pylint: disable=unpacking-non-sequence
@@ -367,7 +356,21 @@ class PauseAndCapture(Node):
         Publish the merged point cloud
         """
         # -------------- TBD -------------
-        ... # create a point cloud using pc2.create_cloud
+        # create a point cloud using pc2.create_cloud
+        header = Header()
+        header.stamp = stamp
+        header.frame_id = "icp_merged_cloud"
+
+        fields = [
+            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+        ]
+
+        cloud_msg = pc2.create_cloud(header, fields, self.icp_merged_cloud)
+
+        self.pc_pub.publish(cloud_msg)
+        self.get_logger().info("Published icp merged cloud.")
         # ----------------- TBD END ---------------
 
     def world_to_map(self, x, y):
@@ -391,8 +394,8 @@ class PauseAndCapture(Node):
         # ---------------------- TBD ---------------------------------
         for x, y in points:
             # Convert robot and endpoint (scan hit) to map coordinates (cell indices)
-            mx0, my0 = ...  # starting point for raycasting, use world_to_map()
-            mx1, my1 = ...  # end point for raycasting, use world_to_map()
+            mx0, my0 = robot_x, robot_y  # starting point for raycasting, use world_to_map()
+            mx1, my1 = x, y  # end point for raycasting, use world_to_map()
 
             # Skips update if either point is outside the map bounds
             if mx0 is None or mx1 is None:
@@ -400,13 +403,13 @@ class PauseAndCapture(Node):
 
             # Free space update (cells along the ray from robot to hit point)
             for cx, cy in self.ray_casting(mx0, my0, mx1, my1)[:-1]:  # excludes last point (occupied)
-                lt_1 = ...  # previous log-odds value (lt−1)
-                lt = ...  # log-odds update for free cell
+                lt_1 = self.log_odds_map[cx, cy] # previous log-odds value (lt−1)
+                lt = lt_1 + self.lz_free - self.l0   # log-odds update for free cell
                 self.log_odds_map[cy, cx] = np.clip(lt, self.log_odds_min, self.log_odds_max)
 
             # Occupied cell update (the cell where the scan hits an obstacle)
-            lt_1 = ...  # previous log-odds value (lt−1)
-            lt = ... # log-odds update for occupied cell
+            lt_1 = self.log_odds_map[cx, cy] # previous log-odds value (lt−1)
+            lt = lt_1 + self.lz_occ - self.l0   # log-odds update for free cell
             self.log_odds_map[my1, mx1] = np.clip(lt, self.log_odds_min, self.log_odds_max)
         # ---------------------- TBD-END ---------------------------------
 
@@ -454,9 +457,9 @@ class PauseAndCapture(Node):
 
         grid_msg.info = metadata
 
-        probs = ...  # calculate probability from the logodds (remember log)
-        grid_data = ...  # ROS2 expects occupied grids to be = 100 * probability and int8
-        grid_data[self.log_odds_map == 0] = ... # unexplored grids should have value of -1
+        probs = 1 / (1 + math.exp(-1*self.log_odds_map))  # calculate probability from the logodds (remember log)
+        grid_data = (probs * 100).astype(np.uint8)  # ROS2 expects occupied grids to be = 100 * probability and int8
+        grid_data[self.log_odds_map == 0] = -1 # unexplored grids should have value of -1
 
         # ----------------- TBD END ---------------------
         grid_msg.data = grid_data.flatten().tolist()
