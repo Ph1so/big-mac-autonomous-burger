@@ -158,7 +158,9 @@ class ParticleFilterNode(Node):
             PoseWithCovarianceStamped, "/initialpose", self.initialpose_callback, odom_qos
         )
         # Create a PoseArray publisher on the particle_cloud topic
-        self.particle_pub = ... # MARK: TODO
+        self.particle_pub = self.create_publisher(
+            PoseArray, "/particle_cloud", sensor_qos        # MARK: check QOS
+        )
         self.create_timer(0.05, self.publish_tf)
         self.create_timer(1.0, self.anchor_manager.check_and_anchor)
         # ------------ TBD - END -------------------
@@ -248,8 +250,39 @@ class ParticleFilterNode(Node):
         dtheta = math.atan2(sin, cos) from T_rel
         '''
         
-        # MARK: TODO
+        x1 = self.last_odom.pose.pose.position.x
+        y1 = self.last_odom.pose.pose.position.y
+        qx1 = self.last_odom.pose.pose.orientation.x
+        qy1 = self.last_odom.pose.pose.orientation.y
+        qz1 = self.last_odom.pose.pose.orientation.z
+        qw1 = self.last_odom.pose.pose.orientation.w
+        
+        x2 = msg.pose.pose.position.x
+        y2 = msg.pose.pose.position.y
+        qx2 = msg.pose.pose.orientation.x
+        qy2 = msg.pose.pose.orientation.y
+        qz2 = msg.pose.pose.orientation.z
+        qw2 = msg.pose.pose.orientation.w
 
+        siny_cosp1 = 2.0 * (qw1 * qz1 + qx1 * qy1)
+        cosy_cosp1 = 1.0 - 2.0 * (qy1 * qy1 + qz1 * qz1)
+        th1 = math.atan2(siny_cosp1, cosy_cosp1)
+
+        siny_cosp2 = 2.0 * (qw2 * qz2 + qx2 * qy2)
+        cosy_cosp2 = 1.0 - 2.0 * (qy2 * qy2 + qz2 * qz2)
+        th2 = math.atan2(siny_cosp2, cosy_cosp2)
+
+        T_prev = [[math.cos(th1), -math.sin(th1), x1],
+                  [math.sin(th1), math.cos(th1), y1],
+                  [0, 0, 1]]
+        T_curr = [[math.cos(th2), -math.sin(th2), x2],
+                          [math.sin(th2), math.cos(th2), y2],
+                          [0, 0, 1]]
+        T_rel = np.inv(T_prev) @ T_curr
+
+        dx = T_rel[0, 2]
+        dy = T_rel[1, 2]
+        dtheta = math.atan2(T_rel[1, 0], T_rel[0, 0])
         # ---------------------- TBD ----------------------------
 
         self.motion_update((dx, dy, dtheta))
@@ -271,21 +304,24 @@ class ParticleFilterNode(Node):
         add Gaussian noise with random.gauss with mean 0 and standard deviation 0.01
         """
         # ---------------------- TBD -----------------------
-        # MARK: TODO
         dx, dy, dtheta = u
         for p in self.particles:
-            ndx = ...  # add random noise (unit is meters)
-            ndy = ...
-            ndtheta = ...
+            ndx = random.gauss(0, 0.01) + dx  # add random noise (unit is meters)
+            ndy = random.gauss(0, 0.01) + dy
+            ndtheta = random.gauss(0, 0.01) + dtheta
 
-            T_particle = ...
-            T_delta = ...
+            T_particle = [[math.cos(p.theta), -math.sin(p.theta), p.x],
+                          [math.sin(p.theta), math.cos(p.theta), p.y],
+                          [0, 0, 1]]
+            T_delta =[[math.cos(ndtheta), -math.sin(ndtheta), ndx],
+                          [math.sin(ndtheta), math.cos(ndtheta), ndy],
+                          [0, 0, 1]]
          
-            T_new = ...
+            T_new = T_particle @ T_delta
 
-            p.x = T_new[...]
-            p.y = T_new[...]
-            p.theta = math.atan2(...)
+            p.x = T_new[0, 2]
+            p.y = T_new[1, 2]
+            p.theta = math.atan2(T_new[1, 0], T_new[0, 0])
         #------------------------- TBD -END --------------------
 
     def scan_callback(self, msg: LaserScan):
@@ -442,10 +478,19 @@ class ParticleFilterNode(Node):
                   however, you may use break it to multiple lines of code 
         Step 7: atan2 between sin_sum, and cos_sum for proper angle wrapup
         """
-
+       
         #----------------------- TBD -----------------------
         # MARK: TODO
-
+        x = 0
+        y = 0
+        theta = 0
+        for p in range(self.particles): 
+            x += p.x * p.weight
+            y += p.y * p.weight
+            theta += math.atan2(sum(p.weight * math.sin(p.theta)), sum(p.weight * math.cos(p.theta)))
+        x = x / len(self.particles)
+        y = y / len(self.particles)
+        theta = theta / len(self.particles)
         return x, y, theta
 
         # ----------------------- TBD-END -----------------------
@@ -483,10 +528,14 @@ class ParticleFilterNode(Node):
         otheta = self.get_yaw(self.last_odom.pose.pose.orientation)
         
         # for the homogeneous matrix using the theta or otheta angle
-        T_map_base = ...
-        T_odom_base = ...
+        T_map_base = [[math.cos(theta), -math.sin(theta), x],
+                    [math.sin(theta), math.cos(theta), y],
+                    [0, 0, 1]]
+        T_odom_base = [[math.cos(otheta), -math.sin(otheta), ox],
+                    [math.sin(otheta), math.cos(otheta), oy],
+                    [0, 0, 1]]
         # T_map_odom =T_map_base @ T_base_odom or T_map_odom =T_map_base @ inverse(T_odom_base)
-        self.T_map_odom = ...
+        self.T_map_odom = T_map_base @ np.linalg.inv(T_odom_base)
         
         self.map_to_odom_set = True
         # ----------------------- TBD-END -----------------------
