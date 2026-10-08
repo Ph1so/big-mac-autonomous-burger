@@ -86,8 +86,8 @@ class PauseAndCapture(Node):
         self.origin_x = -0.9 / 2  # initialize to the half of the arena width/2 metric value. Should have negative sign
         self.origin_y = -1.8 / 2  # initialize to the half of the arena height/2 metric value. Should have negative sign
         self.l0 = math.log(.5/.5)  # initial probability of all cells will be 0.5. convert this to lof odds value
-        self.lz_occ = math.log(.6/.4)  # use higher positive values [0, 1] for occupied cell
-        self.lz_free = math.log(.3/.7)  # use lower negative values [0, 1] for empty cells. Should have negative sign
+        self.lz_occ = math.log(.7/.3)  # use higher positive values [0, 1] for occupied cell
+        self.lz_free = math.log(.4/.6)  # use lower negative values [0, 1] for empty cells. Should have negative sign
         self.log_odds_min = math.log(.1/.9) # calculate log odds lower bounds for probability = 0.1. Should have negative sign
         self.log_odds_max = math.log(.9/.1)  # alculate log odds upper bounds for probability = 0.9
         # ----------------------- TBD-END -------------------

@@ -211,7 +211,7 @@ class ParticleFilterNode(Node):
 
         valid_cells = [(ox + (x + 0.5) * res, oy + (y + 0.5) * res)
                        for y in range(height) for x in range(width)
-                       if map_data[x, height - y - 1] >= 250]  # TODO: check 0.2 # write the pixel value for "free" grid. refer to lecture notes
+                       if map_data[x, height - y - 1] >= 0.2]  # TODO: check 0.2 # write the pixel value for "free" grid. refer to lecture notes
         # -------------------- TBD -END ---------------------
 
         for _ in range(self.num_particles):
