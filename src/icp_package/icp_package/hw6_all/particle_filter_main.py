@@ -107,7 +107,7 @@ class ParticleFilterNode(Node):
         super().__init__('particle_filter_node')
 
 # --------------- TBD ---------------
-        self.num_particles = ... # try a value between 30 -120
+        self.num_particles = 80 # try a value between 30 -120
 # --------------- TBD -END  ---------------
         self.particles = []
         self.map = None
@@ -126,17 +126,39 @@ class ParticleFilterNode(Node):
         # ------------ TBD -------------------
         # write the appropriate QoS profile for the publishing MAP. this requires additional durability policy
         # refer to the lecture for more details
-        map_qos = ...
-        sensor_qos = ...
-        odom_qos = ...
+        map_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            depth = 10,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        sensor_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            depth = 10,
+            durability=QoSDurabilityPolicy.VOLATILE,
+        )
+        odom_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            depth = 10,
+            durability=QoSDurabilityPolicy.VOLATILE,
+        )
         
-        # Create four subsribers, subscribing to 
+        # MARK: Create four subsribers, subscribing to 
         # 1) /map, 2) /odom, 3) /scan, 4) /initialpose, 
         # with the appropriate QoS and callbacks for each
-        ...
-
+        self.map_subscription = self.create_subscription(
+            OccupancyGrid, "/map", self.map_callback, map_qos
+        )
+        self.odom_subscription = self.create_subscription(
+            Odometry, "/odom", self.odom_callback, odom_qos
+        )
+        self.scan_subscription = self.create_subscription(
+            LaserScan, "/scan", self.scan_callback, sensor_qos
+        )
+        self.initialpose_subscription = self.create_subscription(
+            PoseWithCovarianceStamped, "/initialpose", self.initialpose_callback, odom_qos
+        )
         # Create a PoseArray publisher on the particle_cloud topic
-        self.particle_pub = ...
+        self.particle_pub = ... # MARK: TODO
         self.create_timer(0.05, self.publish_tf)
         self.create_timer(1.0, self.anchor_manager.check_and_anchor)
         # ------------ TBD - END -------------------
@@ -182,12 +204,12 @@ class ParticleFilterNode(Node):
 
         # Experiment with this path, as the absolute path might be the easiest to do from your root directory or may have to 
         # use the relative path from the current directory you are running the node from or the file itself
-        map_image = Image.open('.../.../.../map.pgm').convert('L')
+        map_image = Image.open('.../.../.../map.pgm').convert('L') # MARK: TODO
         map_data = map_image.load()
 
         valid_cells = [(ox + (x + 0.5) * res, oy + (y + 0.5) * res)
                        for y in range(height) for x in range(width)
-                       if map_data[x, height - y - 1] >= ...]   # write the pixel value for "free" grid. refer to lecture notes
+                       if map_data[x, height - y - 1] >= 0.2]  # TODO: check 0.2 # write the pixel value for "free" grid. refer to lecture notes
         # -------------------- TBD -END ---------------------
 
         for _ in range(self.num_particles):
@@ -226,7 +248,7 @@ class ParticleFilterNode(Node):
         dtheta = math.atan2(sin, cos) from T_rel
         '''
         
-        ...
+        # MARK: TODO
 
         # ---------------------- TBD ----------------------------
 
@@ -249,6 +271,7 @@ class ParticleFilterNode(Node):
         add Gaussian noise with random.gauss with mean 0 and standard deviation 0.01
         """
         # ---------------------- TBD -----------------------
+        # MARK: TODO
         dx, dy, dtheta = u
         for p in self.particles:
             ndx = ...  # add random noise (unit is meters)
@@ -316,18 +339,20 @@ class ParticleFilterNode(Node):
         #------------------------ TBD --------------------------
         for r in scan_msg.ranges[::1]:
             if scan_msg.range_min < r < scan_msg.range_max:
-                x = ... # r is the distance reported by each scan, so we want to extract the x and y components using the angle
-                y = ... # note that we need to use the particle's x and y position to transform this to world coordinates
-                mx = ... # it is in pixel unit so divide by resolution and should be int type
-                my = ... # similar as above
+                # MARK: TODO check dis
+                x = p.x + (r * math.cos(angle)) # r is the distance reported by each scan, so we want to extract the x and y components using the angle
+                y = p.y + (r * math.sin(angle))  # note that we need to use the particle's x and y position to transform this to world coordinates
+                mx = int(x / self.map_info.resolution) # it is in pixel unit so divide by resolution and should be int type
+                my = int(y / self.map_info.resolution) # similar as above
                 # check if it falls within the map or not
                 if 0 <= mx < self.distance_map.shape[1] and 0 <= my < self.distance_map.shape[0]:
-                    d = ...
-                    likelihood = ...
+                    d = self.distance_map[mx][my] 
+                    likelihood = math.exp(-d**2/ (2 * sigma**2))
                 else:
                     # if not some other value. try values between 0.5 and 1
-                    likelihood = ...# similar expression to 2.d but d is fixed to a number
-                w *= max(likelihood, ...)  # a small value here... just so that the weights are not too small and collapse
+                    d = 0.5 
+                    likelihood = math.exp(-d**2/ (2 * sigma**2)) # similar expression to 2.d but d is fixed to a number
+                w *= max(likelihood, 0.00001)  # a small value here... just so that the weights are not too small and collapse
             angle += scan_msg.angle_increment
         # ------------------------ TBD-END --------------------------
         return w
@@ -367,7 +392,28 @@ class ParticleFilterNode(Node):
         """
 
         #------------------------- TBD ------------------------------
-        ...
+
+        # 1) normalize particle weights
+        total_weight = 0
+        for particle in self.particles:
+            total_weight += particle.weight
+        for particle in self.particles:
+            particle.weight /= total_weight
+
+        # 2) calc cum sum
+        CDF = [self.particles[0].weight]
+        for i in range(1, len(self.particles)):
+            CDF.append(CDF[i-1] + self.particles[i])
+        CDF.append(1.0)
+        # 3-5) generate N particles; check CDF; dup particle
+        space = 1/self.num_particles
+        for i in range(self.num_particles):
+            ran = random.random(0, 1)
+            for j in range(len(CDF)):
+                if ran <= CDF[j]:
+                    # dup particle j by replaceing particle i with particle j
+                    self.particles[i] = self.particles[j]            
+               
 
         #------------------------- TBD-END ------------------------------
 
@@ -398,7 +444,7 @@ class ParticleFilterNode(Node):
         """
 
         #----------------------- TBD -----------------------
-        ...
+        # MARK: TODO
 
         return x, y, theta
 
