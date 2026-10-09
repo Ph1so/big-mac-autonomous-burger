@@ -117,7 +117,7 @@ class ParticleFilterNode(Node):
         self.T_map_odom = None
         self.map_to_odom_set = False
         self.publish_tf_enabled = False
-        self.use_auto_anchor = False  # use this to enable/ disable auto anchoring
+        self.use_auto_anchor = True  # use this to enable/ disable auto anchoring
         self.visualize_dt = False     # visualize distance transform
 
         self.anchor_manager = AutoAnchorManager(self, self)
@@ -159,7 +159,7 @@ class ParticleFilterNode(Node):
         )
         # Create a PoseArray publisher on the particle_cloud topic
         self.particle_pub = self.create_publisher(
-            PoseArray, "/particle_cloud", sensor_qos        # MARK: check QOS
+            PoseArray, "/particle_cloud", 10        
         )
         self.create_timer(0.05, self.publish_tf)
         self.create_timer(1.0, self.anchor_manager.check_and_anchor)
@@ -317,7 +317,7 @@ class ParticleFilterNode(Node):
                           [math.sin(ndtheta), math.cos(ndtheta), ndy],
                           [0, 0, 1]]
          
-            T_new = T_particle @ T_delta
+            T_new = np.array(T_particle) @ np.array(T_delta)
 
             p.x = T_new[0, 2]
             p.y = T_new[1, 2]
@@ -341,12 +341,11 @@ class ParticleFilterNode(Node):
         else:
             for p in self.particles:
                 p.weight = 1.0 / self.num_particles
-
         self.resample()
         self.publish_particles()
 
 
-    def measurement_likelihood(self, p, scan_msg, sigma=0.01):
+    def measurement_likelihood(self, p, scan_msg, sigma=0.05):
 
         """
         Compute likelihood here.
@@ -373,23 +372,30 @@ class ParticleFilterNode(Node):
         angle = scan_msg.angle_min # this is the no. of lidar beams. in total around 220. Set it between range
                                    # 1 and 10. 1 = consider all beams. more beams = more compute time
         #------------------------ TBD --------------------------
-        for r in scan_msg.ranges[::1]:
+        step = 5
+        for i in range(0, len(scan_msg.ranges), step):
+            r = scan_msg.ranges[i]
+            angle = scan_msg.angle_min + i * scan_msg.angle_increment
             if scan_msg.range_min < r < scan_msg.range_max:
                 # MARK: TODO check dis
-                x = p.x + (r * math.cos(angle)) # r is the distance reported by each scan, so we want to extract the x and y components using the angle
-                y = p.y + (r * math.sin(angle))  # note that we need to use the particle's x and y position to transform this to world coordinates
-                mx = int(x / self.map_info.resolution) # it is in pixel unit so divide by resolution and should be int type
-                my = int(y / self.map_info.resolution) # similar as above
+                T_particle = [[math.cos(p.theta), -math.sin(p.theta), p.x],
+                          [math.sin(p.theta), math.cos(p.theta), p.y],
+                          [0, 0, 1]]
+                # r is the distance reported by each scan, so we want to extract the x and y components using the angle
+                pos = T_particle @ np.array([r*math.cos(angle), r*math.sin(angle), 1]).T
+                x = pos[0]
+                y = pos[1] # note that we need to use the particle's x and y position to transform this to world coordinates
+                mx = int((x - self.map_info.origin.position.x) // self.map_info.resolution) # it is in pixel unit so divide by resolution and should be int type
+                my = int((y - self.map_info.origin.position.y) // self.map_info.resolution) # similar as above
                 # check if it falls within the map or not
                 if 0 <= mx < self.distance_map.shape[1] and 0 <= my < self.distance_map.shape[0]:
-                    d = self.distance_map[mx][my] 
+                    d = self.distance_map[my][mx] 
                     likelihood = math.exp(-d**2/ (2 * sigma**2))
                 else:
                     # if not some other value. try values between 0.5 and 1
                     d = 0.5 
                     likelihood = math.exp(-d**2/ (2 * sigma**2)) # similar expression to 2.d but d is fixed to a number
                 w *= max(likelihood, 0.00001)  # a small value here... just so that the weights are not too small and collapse
-            angle += scan_msg.angle_increment
         # ------------------------ TBD-END --------------------------
         return w
 
@@ -429,29 +435,28 @@ class ParticleFilterNode(Node):
 
         #------------------------- TBD ------------------------------
 
-        # 1) normalize particle weights
-        total_weight = 0
-        for particle in self.particles:
-            total_weight += particle.weight
-        for particle in self.particles:
-            particle.weight /= total_weight
+        # 1) normalize
+        total = sum(p.weight for p in self.particles)
+        weights = [p.weight / total for p in self.particles]
 
-        # 2) calc cum sum
-        CDF = [self.particles[0].weight]
-        for i in range(1, len(self.particles)):
-            CDF.append(CDF[i-1] + self.particles[i])
-        CDF.append(1.0)
-        # 3-5) generate N particles; check CDF; dup particle
-        space = 1/self.num_particles
-        for i in range(self.num_particles):
-            ran = random.random(0, 1)
-            for j in range(len(CDF)):
-                if ran <= CDF[j]:
-                    # dup particle j by replaceing particle i with particle j
-                    self.particles[i] = self.particles[j]            
-               
+        # 2) CDF
+        cdf = np.cumsum(weights)
+        cdf[-1] = 1.0  # guard against float round-off
 
-        #------------------------- TBD-END ------------------------------
+        # 3-5) systematic resampling
+        N = self.num_particles
+        r = random.random() / N
+        new_particles = []
+        j = 0
+        for i in range(N):
+            u = r + i / N
+            while u > cdf[j]:
+                j += 1
+            src = self.particles[j]
+            new_particles.append(Particle(src.x, src.y, src.theta, 1.0 / N))
+        self.particles = new_particles
+
+                #------------------------- TBD-END ------------------------------
 
     def estimate_pose(self):
 
@@ -481,17 +486,14 @@ class ParticleFilterNode(Node):
        
         #----------------------- TBD -----------------------
         # MARK: TODO
-        x = 0
-        y = 0
-        theta = 0
-        for p in range(self.particles): 
-            x += p.x * p.weight
-            y += p.y * p.weight
-            theta += math.atan2(sum(p.weight * math.sin(p.theta)), sum(p.weight * math.cos(p.theta)))
-        x = x / len(self.particles)
-        y = y / len(self.particles)
-        theta = theta / len(self.particles)
+        total = sum(p.weight for p in self.particles)
+        x = sum(p.weight * p.x for p in self.particles) / total
+        y = sum(p.weight * p.y for p in self.particles) / total
+        s = sum(p.weight * math.sin(p.theta) for p in self.particles)
+        c = sum(p.weight * math.cos(p.theta) for p in self.particles)
+        theta = math.atan2(s, c)
         return x, y, theta
+
 
         # ----------------------- TBD-END -----------------------
 
@@ -550,9 +552,9 @@ class ParticleFilterNode(Node):
         theta = self.get_yaw(msg.pose.pose.orientation)
         # adding random noise to the given pose
         # ------------------ TBD --------------------
-        self.particles = [Particle(random.gauss(x, ...),  # try same value on all (0.1 to 0.3)
-                                   random.gauss(y, ...),  # same here
-                                   random.gauss(theta, ...),
+        self.particles = [Particle(random.gauss(x, 0.1),  # try same value on all (0.1 to 0.3)
+                                   random.gauss(y, 0.1),  # same here
+                                   random.gauss(theta, 0.1),
                                    1.0 / self.num_particles)
                           for _ in range(self.num_particles)]
         # ------------------ TBD-END --------------------
