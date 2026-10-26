@@ -1,2 +1,0 @@
-[console_scripts]
-listener = tb3_yaw_fusion.imu_yaw_integrator:main

@@ -1,1 +1,15 @@
+# colcon workspace output
+build/
+install/
 log/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+
+# ROS debugging output
+frames_*.gv
+frames_*.pdf
